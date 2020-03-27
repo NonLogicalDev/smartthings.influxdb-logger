@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/NonLogicalDev/smartthings.influxdb-logger/pkg/httpserver"
+	"go.uber.org/zap"
 )
 
 var (
@@ -30,6 +31,7 @@ func init() {
 			listenURL = "0.0.0.0:5555"
 		}
 	}
+
 	if influxURL == "" {
 		influxURL, ok  = os.LookupEnv("SMT_INFLUX_URL")
 		if !ok {
@@ -39,10 +41,16 @@ func init() {
 }
 
 func main() {
-	httpserver.RegisterHandlers("", influxURL, http.DefaultServeMux)
+	log, err := zap.NewProduction()
+	if err != nil {
+		panic(err)
+	}
+
+	httpserver.RegisterHandlers(log, "/", influxURL, http.DefaultServeMux)
 
 	fmt.Println("Listening on: ", listenURL)
 	fmt.Println("InfluxDB URL: ", influxURL)
+
 	if err := http.ListenAndServe(listenURL, nil); err != nil {
 		panic(err)
 	}

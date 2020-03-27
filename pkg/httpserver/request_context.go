@@ -3,33 +3,35 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
+
+	"go.uber.org/zap"
 )
 
 type RequestContext struct {
 	context.Context
 
-	Id   int
-	ResW http.ResponseWriter
-	Req  *http.Request
+	Id  int
+
+	Res http.ResponseWriter
+	Req *http.Request
+	Log *zap.Logger
 
 	cacheBody    []byte
 	cacheBodyErr error
 }
 
 func (rCtx *RequestContext) WriteJSON(data interface{}) {
-	_ = json.NewEncoder(rCtx.ResW).Encode(data)
+	_ = json.NewEncoder(rCtx.Res).Encode(data)
 }
 
 func (rCtx *RequestContext) WriteStatus(code int) {
-	rCtx.ResW.WriteHeader(code)
+	rCtx.Res.WriteHeader(code)
 }
 
 func (rCtx *RequestContext) WriteHeader(name, value string) {
-	rCtx.ResW.Header().Add(name, value)
+	rCtx.Res.Header().Add(name, value)
 }
 
 func (rCtx *RequestContext) ReadJSON(out interface{}) error {
@@ -59,12 +61,12 @@ func (rCtx *RequestContext) WriteError(err error) {
 	}
 }
 
-func (rCtx *RequestContext) Log(header string, msg string, args ...interface{}) {
-	fmt.Printf("[%s]:(%d) %s: %s\n",
-		time.Now().Format(time.RFC3339),
-		rCtx.Id,
-		header,
-		fmt.Sprintf(msg, args...),
-	)
-}
+// func (rCtx *RequestContext) Log(header string, msg string, args ...interface{}) {
+// 	fmt.Printf("[%s]:(%d) %s: %s\n",
+// 		time.Now().Format(time.RFC3339),
+// 		rCtx.Id,
+// 		header,
+// 		fmt.Sprintf(msg, args...),
+// 	)
+// }
 

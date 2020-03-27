@@ -1,10 +1,11 @@
 package httpserver
 
 import (
-	"strings"
+	"fmt"
 	"time"
 
 	"github.com/NonLogicalDev/smartthings.influxdb-logger/pkg/tsdb"
+	"go.uber.org/zap"
 )
 
 type SMTHandler struct {
@@ -29,20 +30,34 @@ func (h *SMTHandler) handleSmtData(x *RequestContext) {
 
 	switch msg.Type {
 	case "event":
+		x.Log = x.Log.With(zap.String("message-type", "event"))
+		x.Log.Info("received event request")
+
 		var event SMTMessageEventData
-		x.Log("t:data:evt", "%s", string(msg.Data))
 		x.OnError(400, msg.Populate(&event))
+
+		x.Log.Debug("received event", zap.Any("event", event))
+
 		h.handleSmtEventData(x, event)
+
 		return
 	case "state":
+		x.Log = x.Log.With(zap.String("message-type", "state"))
+		x.Log.Info("received state request")
+
 		var state string
 		x.OnError(400, msg.Populate(&state))
-		x.Log("t:state", "%s", state)
+
+		x.Log.Debug("received state", zap.Any("state", state))
 		return
 	case "subscribe":
-		var state []string
-		x.OnError(400, msg.Populate(&state))
-		x.Log("t:subscribe", "\n%s", strings.Join(state, "\n"))
+		x.Log = x.Log.With(zap.String("message-type", "subscribe"))
+		x.Log.Info("received subscription request")
+
+		var subscriptions []string
+		x.OnError(400, msg.Populate(&subscriptions))
+
+		x.Log.Debug("received subscriptions", zap.Any("subscriptions", subscriptions))
 		return
 	}
 
@@ -54,43 +69,41 @@ func (h *SMTHandler) handleSmtEventData(x *RequestContext, evt SMTMessageEventDa
 	// Example: 1556002854(442)
 	date := time.Unix(evt.TS/1000, evt.TS%1000)
 
-	switch evt.Data.Metric {
+	x.Log = x.Log.Named("EventDataHandler").With(
+		zap.String("device-label", evt.Device.Label),
+		zap.String("device-id", evt.Device.Id),
+		zap.String("metric-name", evt.Metric.Name),
+		zap.String("metric-value", evt.Metric.StrValue),
+		zap.Time("date", date),
+	)
+
+	x.Log.Info("processing event request")
+
+	switch evt.Metric.Name {
 	case "status":
 	case "primaryStatus":
 	case "secondaryStatus":
 		return
 	}
 
-	x.Log("t:metric:evt", "label: %s, m: %v, v: %v, rv: %+v, date: (%v)",
-		evt.Device.Label,
-		evt.Data.Metric,
-		evt.Data.StrValue,
-		evt.Data,
-		date,
-	)
-
 	fields := DecodeValueToFields(evt)
-	x.Log("t:metric:fields", "%+v", fields)
+	x.Log.Debug("parsed request", zap.Any("fields", fields))
 
 	var err error
 	err = h.tsdb.WriteMetrics(h.dbName,
 		tsdb.Metric{
 			TS:     date,
-			Name: evt.Data.Metric,
+			Name: evt.Metric.Name,
 			Tags: map[string]string{
 				"device":    evt.Device.Label,
 				"device-id": evt.Device.Id,
 			},
-
-			Values: fields,
+			Values: fields.Export(),
 		},
 	)
 	if err != nil {
-		x.Log("t:metric:error", "%v", err)
-		x.OnError(500, err)
+		x.OnError(500, fmt.Errorf("failed writing to influxdb: %w", err))
 	}
-
-	x.Log("t:metric:status", "OK")
 	x.WriteStatus(200)
 }
 
