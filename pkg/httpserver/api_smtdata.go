@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"srv/smt.logger/pkg/tsdb"
+	"github.com/NonLogicalDev/smartthings.influxdb-logger/pkg/tsdb"
 )
 
 type SMTHandler struct {

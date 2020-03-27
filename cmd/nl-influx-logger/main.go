@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"srv/smt.logger/pkg/httpserver"
+	"github.com/NonLogicalDev/smartthings.influxdb-logger/pkg/httpserver"
 )
 
 var (
