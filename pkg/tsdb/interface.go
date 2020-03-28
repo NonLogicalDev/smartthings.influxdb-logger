@@ -1,43 +1,48 @@
 package tsdb
 
 import (
-	influxdb "github.com/influxdata/influxdb1-client/v2"
 	"time"
+
+	influxdb "github.com/influxdata/influxdb1-client/v2"
 )
 
-type TSDBClient struct {
-	influxClient influxdb.Client
+type Client struct {
+	defaultPrecision string
+	influxClient     influxdb.Client
 }
 
 type Metric struct {
-	TS time.Time
+	TS   time.Time
 	Name string
 	Tags map[string]string
 
 	Values map[string]interface{}
 }
 
-func NewTSDBClient(url string) *TSDBClient {
-	c := TSDBClient{}
-
+func NewTSDBClient(url string, defaultPrecision string) (*Client, error) {
 	var err error
+
+	c := Client{
+		defaultPrecision: defaultPrecision,
+	}
+
 	c.influxClient, err = influxdb.NewHTTPClient(influxdb.HTTPConfig{
 		Addr: url,
 	})
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	return &c
+	return &c, nil
 }
 
-func (ic *TSDBClient) WriteMetrics(db string, metrics ...Metric) (error) {
+func (ic *Client) WriteMetrics(db string, metrics ...Metric) error {
 	bp, _ := influxdb.NewBatchPoints(influxdb.BatchPointsConfig{
-		Precision: "s",
-		Database: db,
+		Precision: ic.defaultPrecision,
+		Database:  db,
 	})
-	var ipoints []*influxdb.Point
+
+	var points []*influxdb.Point
 	for _, m := range metrics {
 		ipoint, err := influxdb.NewPoint(
 			m.Name, m.Tags, m.Values, m.TS,
@@ -45,9 +50,9 @@ func (ic *TSDBClient) WriteMetrics(db string, metrics ...Metric) (error) {
 		if err != nil {
 			return nil
 		}
-		ipoints = append(ipoints, ipoint)
+		points = append(points, ipoint)
 	}
 
-	bp.AddPoints(ipoints)
+	bp.AddPoints(points)
 	return ic.influxClient.Write(bp)
 }

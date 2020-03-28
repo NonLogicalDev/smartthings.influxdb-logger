@@ -1,19 +1,21 @@
-PREFIX?=./build
+DOCKER_IMAGE=nonlogical/smt.logger
 
+.PHONY: install
 install:
 	go install ./...
 
-.PHONY: build
-build:
-	mkdir -p $(PREFIX)
-	env go build -o "$(PREFIX)/smt.logger" ./cmd/smt.logger
+.PHONY: docker.build
+docker.build:
+	docker build -t $(DOCKER_IMAGE) .
 
-.PHONY: build.linux.nat
-build.linux:
-	mkdir -p $(PREFIX)
-	env GOOS=linux go build -o "$(PREFIX)/smt.logger.linux" ./cmd/smt.logger
+.PHONY: docker.run
+docker.run:
+	docker run -it --rm --name smt.logger $(DOCKER_IMAGE)
 
-.PHONY: build.linux.arm
-build.linux.arm:
-	mkdir -p $(PREFIX)
-	env GOOS=linux GOARCH=arm go build -o "$(PREFIX)/smt.logger.linux.arm" ./cmd/smt.logger
+.PHONY: docker.upload
+docker.upload: docker.build
+	docker push $(DOCKER_IMAGE):latest
+
+docker.mpush:
+	docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 -t $(DOCKER_IMAGE):latest --push .
+

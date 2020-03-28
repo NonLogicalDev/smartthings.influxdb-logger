@@ -1,14 +1,17 @@
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#######################################################################
+#                                BUILD                                #
+#######################################################################
 
-FROM golang:1.13.4 AS builder
+FROM golang:1.14 AS builder
 
-RUN mkdir /build
-WORKDIR /go/build/go.smt.logger
-COPY . ./
+WORKDIR /build/src/smartthings.logger
+COPY . .
 
 RUN CGO_ENABLED=0 go build -o /build/smt.logger ./cmd/smt.logger
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#######################################################################
+#                                 RUN                                 #
+#######################################################################
 
 FROM alpine
 COPY --from=builder /build/smt.logger /usr/bin/smt.logger

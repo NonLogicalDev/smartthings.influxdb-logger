@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 
@@ -46,6 +47,9 @@ func (rCtx *RequestContext) ReadJSON(out interface{}) error {
 
 func (rCtx *RequestContext) OnError(code int, err error) {
 	if err != nil {
+		if errors.Is(err, &json.UnmarshalTypeError{}) {
+			rCtx.Log = rCtx.Log.With(zap.String("request-body", string(rCtx.cacheBody)))
+		}
 		rCtx.WriteStatus(code)
 		rCtx.WriteError(err)
 		panic(err)
@@ -60,13 +64,3 @@ func (rCtx *RequestContext) WriteError(err error) {
 		})
 	}
 }
-
-// func (rCtx *RequestContext) Log(header string, msg string, args ...interface{}) {
-// 	fmt.Printf("[%s]:(%d) %s: %s\n",
-// 		time.Now().Format(time.RFC3339),
-// 		rCtx.Id,
-// 		header,
-// 		fmt.Sprintf(msg, args...),
-// 	)
-// }
-

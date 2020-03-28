@@ -10,8 +10,12 @@ import (
 )
 
 func RegisterHandlers(log *zap.Logger, root string, influxUrl string, mux *http.ServeMux) {
+	handler, err := NewSMTHandler(influxUrl)
+	if err != nil {
+		panic(err)
+	}
 	mux.HandleFunc(
-		fmt.Sprintf("%s", root), wrapHandler(log, NewSMTHandler(influxUrl)),
+		fmt.Sprintf("%s", root), wrapHandler(log, handler),
 	)
 }
 
@@ -23,7 +27,10 @@ func wrapHandler(log *zap.Logger, handler RequestHandler) Handler {
 			Id:      reqID,
 			Req:     request,
 			Res:     response,
-			Log:     log.Named("RequestHandler").With(zap.Int("trace-id", reqID)),
+			Log:     log.Named("RequestHandler").With(
+				zap.String("uri-path", request.URL.String()),
+				zap.Int("trace-id", reqID),
+			),
 		}
 
 		defer func() {

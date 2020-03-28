@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/NonLogicalDev/smartthings.influxdb-logger/pkg/tsdb"
@@ -9,15 +10,18 @@ import (
 )
 
 type SMTHandler struct {
-	dbName    string
-	tsdb *tsdb.TSDBClient
+	tsdb *tsdb.Client
 }
 
-func NewSMTHandler(influxUrl string) *SMTHandler {
-	return &SMTHandler{
-		dbName:    "smt",
-		tsdb:      tsdb.NewTSDBClient(influxUrl),
+func NewSMTHandler(influxUrl string) (*SMTHandler, error) {
+	tsdbClient, err := tsdb.NewTSDBClient(influxUrl, "s")
+	if err != nil {
+		return nil, err
 	}
+
+	return &SMTHandler{
+		tsdb: tsdbClient,
+	}, nil
 }
 
 func (h *SMTHandler) HandleRequest(x *RequestContext) {
@@ -48,16 +52,16 @@ func (h *SMTHandler) handleSmtData(x *RequestContext) {
 		var state string
 		x.OnError(400, msg.Populate(&state))
 
-		x.Log.Debug("received state", zap.Any("state", state))
+		x.Log.Info("received state", zap.Any("state", state))
 		return
 	case "subscribe":
 		x.Log = x.Log.With(zap.String("message-type", "subscribe"))
 		x.Log.Info("received subscription request")
 
-		var subscriptions []string
+		var subscriptions []interface{}
 		x.OnError(400, msg.Populate(&subscriptions))
 
-		x.Log.Debug("received subscriptions", zap.Any("subscriptions", subscriptions))
+		x.Log.Info("received subscriptions", zap.Any("subscriptions", subscriptions))
 		return
 	}
 
@@ -65,11 +69,15 @@ func (h *SMTHandler) handleSmtData(x *RequestContext) {
 }
 
 func (h *SMTHandler) handleSmtEventData(x *RequestContext, evt SMTMessageEventData) {
+	// Fetch dbName from the path.
+	dbName := filepath.Base(x.Req.URL.Path)
+
 	// Chop off extra digits from data returned from SMT
 	// Example: 1556002854(442)
 	date := time.Unix(evt.TS/1000, evt.TS%1000)
 
 	x.Log = x.Log.Named("EventDataHandler").With(
+		zap.String("db-name", dbName),
 		zap.String("device-label", evt.Device.Label),
 		zap.String("device-id", evt.Device.Id),
 		zap.String("metric-name", evt.Metric.Name),
@@ -89,10 +97,13 @@ func (h *SMTHandler) handleSmtEventData(x *RequestContext, evt SMTMessageEventDa
 	fields := DecodeValueToFields(evt)
 	x.Log.Debug("parsed request", zap.Any("fields", fields))
 
+
+
+
 	var err error
-	err = h.tsdb.WriteMetrics(h.dbName,
+	err = h.tsdb.WriteMetrics(dbName,
 		tsdb.Metric{
-			TS:     date,
+			TS:   date,
 			Name: evt.Metric.Name,
 			Tags: map[string]string{
 				"device":    evt.Device.Label,
@@ -106,4 +117,3 @@ func (h *SMTHandler) handleSmtEventData(x *RequestContext, evt SMTMessageEventDa
 	}
 	x.WriteStatus(200)
 }
-

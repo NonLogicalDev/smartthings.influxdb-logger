@@ -48,8 +48,8 @@ func main() {
 
 	httpserver.RegisterHandlers(log, "/", influxURL, http.DefaultServeMux)
 
-	fmt.Println("Listening on: ", listenURL)
-	fmt.Println("InfluxDB URL: ", influxURL)
+	log.Info(fmt.Sprint("Listening on: ", listenURL))
+	log.Info(fmt.Sprint("InfluxDB URL: ", influxURL))
 
 	if err := http.ListenAndServe(listenURL, nil); err != nil {
 		panic(err)
